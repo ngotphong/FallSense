@@ -10,7 +10,7 @@
   - `pip install -r requirements.txt`
 
 ## Step 4: Prepare Weight:
-```plaintext
+```
 App_falling/ 
 ├── weights/ 
 │ ├── fall_detection_person.pt
