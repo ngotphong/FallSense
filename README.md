@@ -10,7 +10,6 @@
   - `pip install -r requirements.txt`
 
 ## Step 4: Prepare Weight:
-  - https://drive.google.com/drive/folders/1DfKq5a2ptEDX5umiojBsCePt0VRSu4II
 ```plaintext
 App_falling/ 
 ├── weights/ 
