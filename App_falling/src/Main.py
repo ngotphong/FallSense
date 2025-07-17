@@ -17,7 +17,7 @@ class Main:
         self.camera = None
         self.ret = False
         self.start_camera = True
-        self.fall_detect = FallDetector('weights/fall_detection_person.pt')
+        self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'mps')
         
     def img_cv_2_qt(self, img_cv):
         height, width, channel = img_cv.shape
