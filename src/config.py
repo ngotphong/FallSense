@@ -17,4 +17,4 @@ def resource_path(relative_path):
     base_path = os.path.abspath("GUI")
     return os.path.join(base_path, relative_path)
 
-MAIN_GUI = resource_path("Main.ui")
+MAIN_GUI = resource_path("Main.ui") # fetching the main GUI from GUI/Main.ui

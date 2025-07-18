@@ -28,7 +28,7 @@ class Main:
         # converts the opencv image to a QImage object
         img_qt = QtGui.QImage(img_cv, width, height, bytes_per_line, QtGui.QImage.Format_RGB888).rgbSwapped()
         # converts the QImage object to a QPixmap object
-        cam_availibleurn QtGui.QPixmap.fromImage(img_qt)
+        return QtGui.QPixmap.fromImage(img_qt)
     
     # start the video capture device 
     def init_devices(self, url_camera):

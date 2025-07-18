@@ -20,12 +20,13 @@ class MainGUI(QtWidgets.QMainWindow):
     MessageBox_signal = QtCore.pyqtSignal(str, str)
     def __init__(self):
         super(MainGUI, self).__init__()
-        self.ui = uic.loadUi(co.MAIN_GUI, self)
-        self.pushButton_Camera.clicked.connect(self.open_camera)
-        self.pushButton_Capture.clicked.connect(self.open_video)
-        self.pushButton_Image.clicked.connect(self.manual)
-        self.pushButton_Stop.clicked.connect(self.stop)
-        self.MessageBox_signal.connect(self.MessageBox_slot)
+        self.ui = uic.loadUi(co.MAIN_GUI, self) # the UI
+        self.pushButton_Camera.clicked.connect(self.open_camera) # the camera button
+        self.pushButton_Capture.clicked.connect(self.open_video) # the video button
+        self.pushButton_Image.clicked.connect(self.manual) # the image button
+        self.pushButton_Stop.clicked.connect(self.stop) # the stop button
+        self.MessageBox_signal.connect(self.MessageBox_slot) # the message box signal
+        self.
         
     def start(self):
         try:
