@@ -15,33 +15,41 @@ class Main:
     def __init__(self, MainGUI):
         self.MainGUI = MainGUI
         self.camera = None
-        self.ret = False
+        self.cam_availible = False
         self.start_camera = True
-        self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'mps')
+        self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'cpu')
         
+    # basically turning an opencv image into a QPixmap object for the GUI display    
     def img_cv_2_qt(self, img_cv):
+        # extracts the image dimesion from the passed in opencv image
         height, width, channel = img_cv.shape
+        # calculates the number of bytes per line in the image
         bytes_per_line = channel * width
+        # converts the opencv image to a QImage object
         img_qt = QtGui.QImage(img_cv, width, height, bytes_per_line, QtGui.QImage.Format_RGB888).rgbSwapped()
-        return QtGui.QPixmap.fromImage(img_qt)
+        # converts the QImage object to a QPixmap object
+        cam_availibleurn QtGui.QPixmap.fromImage(img_qt)
     
+    # start the video capture device 
     def init_devices(self, url_camera):
         self.camera = cv2.VideoCapture(url_camera) 
-        self.ret, frame = self.camera.read()
-        if not self.ret:
+        # check if camera/video is reading and reads the first frame from the source   
+        self.cam_availible, frame = self.camera.read()
+        if not self.cam_availible:
             self.start_camera = False
-            self.MainGUI.MessageBox_signal.emit("Có lỗi xảy ra ! \n Không tìm thấy camera/video", "error")
+            self.MainGUI.MessageBox_signal.emit("Error: Camera not found", "error")
         else:
             self.start_camera = True
-        
+
+    # camera detection function 
     def auto_camera(self):
         url_camera = co.CAMERA_DEVICE
         self.init_devices(url_camera)
-        while self.ret and self.start_camera:
+        while self.cam_availible and self.start_camera:
             try:
-                ret, frame = self.camera.read()
-                self.ret = ret
-                if self.ret and self.start_camera:
+                cam_availible, frame = self.camera.read()
+                self.cam_availible = cam_availible
+                if self.cam_availible and self.start_camera:
                     img_result, is_fall = self.fall_detect.inference(frame)
                     get_updater().call_latest(self.MainGUI.label_Image.setPixmap, self.img_cv_2_qt(img_result))
                     if is_fall:
@@ -59,14 +67,15 @@ class Main:
                 print("Bug: ", e)
         self.close_camera()
     
+    # video detection function 
     def auto_video(self, path_video):
         url_camera = path_video
         self.init_devices(url_camera)
-        while self.ret and self.start_camera:
+        while self.cam_availible and self.start_camera:
             try:
-                ret, frame = self.camera.read()
-                self.ret = ret
-                if self.ret and self.start_camera:
+                cam_availible, frame = self.camera.read()
+                self.cam_availible = cam_availible
+                if self.cam_availible and self.start_camera:
                     img_result, is_fall = self.fall_detect.inference(frame)
                     get_updater().call_latest(self.MainGUI.label_Image.setPixmap, self.img_cv_2_qt(img_result))
                     if is_fall:
@@ -85,6 +94,7 @@ class Main:
                 print("Bug: ", e)
         self.close_camera()
     
+    # manual image detection function 
     def manual_image(self, path_image):
         image = cv2.imread(path_image)
         img_result, is_fall = self.fall_detect.inference(image)
@@ -99,13 +109,14 @@ class Main:
             get_updater().call_latest(self.MainGUI.text_resutl.setText, "OK")
             get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(0, 255, 0);")
     
+    # close the camera/video capture device 
     def close_camera(self):
         try:
             self.start_camera = False
-            if self.ret:
+            if self.cam_availible:
                 self.camera.release()
             self.camera = None
-            self.ret = False
+            self.cam_availible = False
             
             time.sleep(1)
             self.MainGUI.label_Image.clear()

@@ -36,7 +36,7 @@ def query_database(db_file, id_video):
     stt, id,path_input, path_video, is_fall, status,timeline = result[0]
     return True, path_video, is_fall, status
 
-def query_inputvideo_database(db_file):
+def query_input_video_database(db_file):
     connection  = sqlite3.connect(db_file)
     cursor = connection.cursor()
     cursor.execute("SELECT id_save, path_input, path_save FROM users WHERE status = ?", ("Process",))
