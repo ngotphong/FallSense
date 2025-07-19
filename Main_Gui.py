@@ -21,12 +21,11 @@ class MainGUI(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainGUI, self).__init__()
         self.ui = uic.loadUi(co.MAIN_GUI, self) # the UI
-        self.pushButton_Camera.clicked.connect(self.open_camera) # the camera button
-        self.pushButton_Capture.clicked.connect(self.open_video) # the video button
-        self.pushButton_Image.clicked.connect(self.manual) # the image button
-        self.pushButton_Stop.clicked.connect(self.stop) # the stop button
+        self.camera_mode_button.clicked.connect(self.open_camera) # the camera button
+        self.video_mode_button.clicked.connect(self.open_video) # the video button
+        self.image_mode_button.clicked.connect(self.manual) # the image button
+        self.keypoint_toggle_button.clicked.connect(self.stop) # the stop button
         self.MessageBox_signal.connect(self.MessageBox_slot) # the message box signal
-        self.
         
     def start(self):
         try:
@@ -76,29 +75,30 @@ class MainGUI(QtWidgets.QMainWindow):
         self.Main.close_camera()
         
     def update_window(self, typ, name="auto_camera"):
+        print("update_window called", typ, name)
         if typ == "start":
             if name == "manual":
-                self.pushButton_Image.setStyleSheet("background-color: rgb(0, 204, 255);")
-                for item in ( self.pushButton_Camera, self.pushButton_Image, self.pushButton_Capture):
+                self.image_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+                for item in ( self.camera_mode_button, self.image_mode_button, self.video_mode_button):
                     item.setEnabled(False)
-                self.pushButton_Stop.setEnabled(True)
+                self.keypoint_toggle_button.setEnabled(True)
             else:
-                self.pushButton_Stop.setEnabled(True)
+                self.keypoint_toggle_button.setEnabled(True)
                 if name == "auto_camera":
-                    self.pushButton_Camera.setStyleSheet("background-color: rgb(0, 204, 255);")
-                    for item in ( self.pushButton_Camera, self.pushButton_Image):
+                    self.camera_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+                    for item in ( self.camera_mode_button, self.image_mode_button):
                         item.setEnabled(False)
 
                 elif name == "auto_video":
-                    for item in ( self.pushButton_Camera, self.pushButton_Image, self.pushButton_Capture):
+                    for item in ( self.camera_mode_button, self.image_mode_button, self.video_mode_button):
                         item.setEnabled(False)
                         item.setStyleSheet("")
-                    self.pushButton_Capture.setStyleSheet("background-color: rgb(0, 204, 255);")
+                    self.video_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
 
         elif typ == "stop":
-            for item in [self.pushButton_Stop]:
+            for item in [self.keypoint_toggle_button]:
                 item.setEnabled(False)
-            for item in (self.pushButton_Camera, self.pushButton_Image, self.pushButton_Capture):
+            for item in (self.camera_mode_button, self.image_mode_button, self.video_mode_button):
                 item.setEnabled(True)
                 item.setStyleSheet("")
     

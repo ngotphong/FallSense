@@ -51,16 +51,16 @@ class Main:
                 self.cam_availible = cam_availible
                 if self.cam_availible and self.start_camera:
                     img_result, is_fall = self.fall_detect.inference(frame)
-                    get_updater().call_latest(self.MainGUI.label_Image.setPixmap, self.img_cv_2_qt(img_result))
+                    get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
                     if is_fall:
                         image_view = img_result.copy()
                         cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-                        get_updater().call_latest(self.MainGUI.label_View.setPixmap, self.img_cv_2_qt(image_view))
-                        get_updater().call_latest(self.MainGUI.text_resutl.setText, "Fall")
-                        get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(255, 0, 0);")
+                        get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
+                        get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
+                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
                     else:
-                        get_updater().call_latest(self.MainGUI.text_resutl.setText, "OK")
-                        get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(0, 255, 0);")
+                        get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
+                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
                 else:
                     break
             except Exception as e:
@@ -77,16 +77,16 @@ class Main:
                 self.cam_availible = cam_availible
                 if self.cam_availible and self.start_camera:
                     img_result, is_fall = self.fall_detect.inference(frame)
-                    get_updater().call_latest(self.MainGUI.label_Image.setPixmap, self.img_cv_2_qt(img_result))
+                    get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
                     if is_fall:
                         image_view = img_result.copy()
                         cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-                        get_updater().call_latest(self.MainGUI.label_View.setPixmap, self.img_cv_2_qt(image_view))
-                        get_updater().call_latest(self.MainGUI.text_resutl.setText, "Fall")
-                        get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(255, 0, 0);")
+                        get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
+                        get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
+                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
                     else:
-                        get_updater().call_latest(self.MainGUI.text_resutl.setText, "OK")
-                        get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(0, 255, 0);")
+                        get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
+                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
     
                 else:
                     break
@@ -98,16 +98,16 @@ class Main:
     def manual_image(self, path_image):
         image = cv2.imread(path_image)
         img_result, is_fall = self.fall_detect.inference(image)
-        get_updater().call_latest(self.MainGUI.label_Image.setPixmap, self.img_cv_2_qt(img_result))
+        get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
         if is_fall:
             image_view = img_result.copy()
             cv2.putText(image_view, 'Person Falling down', (20, 50), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-            get_updater().call_latest(self.MainGUI.label_View.setPixmap, self.img_cv_2_qt(image_view))
-            get_updater().call_latest(self.MainGUI.text_resutl.setText, "Fall")
-            get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(255, 0, 0);")
+            get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
+            get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
+            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
         else:
-            get_updater().call_latest(self.MainGUI.text_resutl.setText, "OK")
-            get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(0, 255, 0);")
+            get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
+            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
     
     # close the camera/video capture device 
     def close_camera(self):
@@ -119,10 +119,10 @@ class Main:
             self.cam_availible = False
             
             time.sleep(1)
-            self.MainGUI.label_Image.clear()
-            self.MainGUI.label_View.clear()
-            get_updater().call_latest(self.MainGUI.text_resutl.setText, "STOP")
-            get_updater().call_latest(self.MainGUI.text_resutl.setStyleSheet,"background-color: rgb(255, 244, 0);")
+            self.MainGUI.image_display.clear()
+            self.MainGUI.result_label.clear()
+            get_updater().call_latest(self.MainGUI.error_label.setText, "STOP")
+            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 244, 0);")
 
         except Exception as e:
                 print("Bug: ", e)
