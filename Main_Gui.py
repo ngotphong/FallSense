@@ -30,6 +30,7 @@ class MainGUI(QtWidgets.QMainWindow):
     def start(self):
         try:
             self.show()
+            # initializing the Main class with the UI
             self.Main = Main(self.ui)
             Timer.Timer(function=self.monitor_pc_performance, name="pc_performance", forever=True, interval=2, type="repeat").start()
         except Exception as e:
@@ -39,6 +40,7 @@ class MainGUI(QtWidgets.QMainWindow):
     def open_camera(self):
         try:
             self.update_window("start", name="auto_camera")
+            # calling the auto_camera function from the Main class
             Timer.Timer(function=self.Main.auto_camera, name="auto_camera").start()
         except Exception as e:
             self.MessageBox_signal.emit(str(e), "error")
@@ -51,6 +53,7 @@ class MainGUI(QtWidgets.QMainWindow):
             options = QtWidgets.QFileDialog.Options()
             video_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "Video (*.mp4 *.avi *.wmv *.mkv)", options=options)
             if video_file:
+                # calling the auto_video function from the Main class
                 Timer.Timer(function=self.Main.auto_video, name="auto_video", args=[video_file]).start()
 
         except Exception as e:
@@ -64,6 +67,7 @@ class MainGUI(QtWidgets.QMainWindow):
             options = QtWidgets.QFileDialog.Options()
             img_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "Images (*.png *.jpg *.jpeg *.bmp)", options=options)
             if img_file:
+                # calling the manual_image function from the Main class
                 self.Main.manual_image(img_file)
             
         except Exception as e:
