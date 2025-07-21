@@ -24,7 +24,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.camera_mode_button.clicked.connect(self.open_camera) # the camera button
         self.video_mode_button.clicked.connect(self.open_video) # the video button
         self.image_mode_button.clicked.connect(self.manual) # the image button
-        self.keypoint_toggle_button.clicked.connect(self.stop) # the stop button
+        # Update to connect to toggle_keypoints instead of stop
+        self.keypoint_toggle_button.clicked.connect(self.toggle_keypoints) # the keypoint toggle button
+        self.keypoint_toggle_button.setText("Show Keypoints") # Set initial text
         self.MessageBox_signal.connect(self.MessageBox_slot) # the message box signal
         
     def start(self):
@@ -36,6 +38,10 @@ class MainGUI(QtWidgets.QMainWindow):
         except Exception as e:
             self.MessageBox_signal.emit(str(e), "error")
             sys.exit(1)
+    
+    def toggle_keypoints(self):
+        # Call the toggle_keypoints method in the Main class
+        self.Main.toggle_keypoints()
     
     def open_camera(self):
         try:
@@ -108,7 +114,7 @@ class MainGUI(QtWidgets.QMainWindow):
     
    
     def closeEvent(self, event):
-        reply = QtWidgets.QMessageBox.question(self, "Thông báo", "Bạn có chắc chắn muốn thoát không ?",
+        reply = QtWidgets.QMessageBox.question(self, "Thông báo", "Bạn có chắc chắn muốn thoát không ?",
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
         if reply == QtWidgets.QMessageBox.Yes:
             event.accept()

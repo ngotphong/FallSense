@@ -17,7 +17,16 @@ class Main:
         self.camera = None
         self.cam_availible = False
         self.start_camera = True
-        self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'cpu')
+        # Initialize with show_keypoints=False
+        self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'cpu', show_keypoints=False)
+        
+    # Toggle keypoints on/off
+    def toggle_keypoints(self):
+        show_keypoints = self.fall_detect.toggle_keypoints()
+        if show_keypoints:
+            get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Hide Keypoints")
+        else:
+            get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Show Keypoints")
         
     # basically turning an opencv image into a QPixmap object for the GUI display    
     def img_cv_2_qt(self, img_cv):

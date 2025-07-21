@@ -14,10 +14,11 @@ from utils.general import non_max_suppression_kpt
 from utils.plots import output_to_keypoint, plot_skeleton_kpts
 
 class FallDetector(object):
-    def __init__(self, path_model, device):
+    def __init__(self, path_model, device, show_keypoints=False):
         self.path_model = path_model
         self.device = torch.device(device)
         self.model = self.load_model(self.path_model)
+        self.show_keypoints = show_keypoints
         
 
     def load_model(self, path_model):
@@ -42,16 +43,31 @@ class FallDetector(object):
         img_pre = self.prepare_image(img)
         # fall detection algorithm
         is_fall, bbox = self.fall_detection(output)
-        # if fall is detected, draw the bounding box on the image
+        
+        # Draw the bounding box on the image if a fall is detected
         if is_fall:
             # scale the coordinates of the bounding box to the original image size
             bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), image.shape).round()
             # draw the bounding box on the image
             img_result = self.falling_alarm(image_raw, bbox_raw)
         else:
-            # if fall is not detected, return the original image
+            # if fall is not detected, use the original image
             img_result = image_raw
+            
+        # Draw the keypoints on the image if show_keypoints is True
+        if self.show_keypoints and len(output) > 0:
+            for i, pose in enumerate(output):
+                # Get the keypoints
+                keypoints = pose[7:].reshape(-1, 3)
+                # Draw the keypoints on the image
+                plot_skeleton_kpts(img_result, keypoints.flatten(), 3)
+                
         return img_result, is_fall
+    
+    # Toggle keypoint display
+    def toggle_keypoints(self):
+        self.show_keypoints = not self.show_keypoints
+        return self.show_keypoints
     
     # draw the bounding box on the image
     def falling_alarm(self, image, bboxes):
