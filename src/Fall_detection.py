@@ -1,152 +1,291 @@
-import torch
-import cv2
-import math
-from torchvision import transforms
-import numpy as np
-import os
+# Import necessary libraries
+import torch                     # PyTorch for deep learning
+import cv2                       # OpenCV for image processing
+import math                      # Math operations
+from torchvision import transforms  # Image transformations
+import numpy as np               # Numerical operations
+import os                        # Operating system functions
 
-from tqdm import tqdm
+from tqdm import tqdm            # Progress bar
 
-from utils.datasets import letterbox
-# non-maximum suppression: filter out the low confidence detections
+# Import custom utility functions from the project
+from utils.datasets import letterbox  # Resizes image while maintaining aspect ratio
+# Non-maximum suppression: filter out overlapping detections with lower confidence
 from utils.general import non_max_suppression_kpt
-# keypoint plotting functions
+# Functions for keypoint extraction and visualization
 from utils.plots import output_to_keypoint, plot_skeleton_kpts
 
 class FallDetector(object):
     def __init__(self, path_model, device, show_keypoints=False):
+        # Store the path to the model weights file
         self.path_model = path_model
+        # Set up the device (CPU or GPU) for inference
         self.device = torch.device(device)
+        # Load the YOLOv7 pose detection model
         self.model = self.load_model(self.path_model)
+        # Flag to control whether keypoints are displayed
         self.show_keypoints = show_keypoints
+        # Factor to adjust keypoint y-position (moves keypoints down to align with person)
+        self.y_offset_factor = 0.35  # Adjusted value for best alignment
         
-
     def load_model(self, path_model):
-        # load model weights
+        # Load model weights from file
         weights = torch.load(path_model, map_location=self.device, weights_only=False)
+        # Extract the model from the weights
         model = weights['model']
-        # .float() to convert the model to float32(inference requires 32-bit precision)
-        # .eval() to set the model to evaluation mode
+        # Convert model to float32 precision and set to evaluation mode
         _ = model.float().eval()
-        # if GPU is available, convert the model to half precision and assign it to the device(GPU)
+        # If GPU is available, optimize model with half-precision
         if torch.cuda.is_available():
             model = model.half().to(self.device)
         print("YOLOv7 model loaded")
         return model
     
-    # inference function, controls the entire inference process
-    def inference(self, image):
+    # Legacy inference function (used for simpler cases)
+    def inference(self, image, scale=1.0, pad_x=0, pad_y=0, label_size=None):
+        # Make a copy of the input image
         image_raw = image.copy()
-        # get the resized image and the output(keypoints)
+        # Get pose detection from the model
         img, output = self.get_pose(image)
-        # prepare the image for the display (convert to BGR(opencv default) format)
+        # Convert model output to OpenCV format
         img_pre = self.prepare_image(img)
-        # fall detection algorithm
+        # Detect falls and get bounding boxes
         is_fall, bbox = self.fall_detection(output)
-        
-        # Draw the bounding box on the image if a fall is detected
         if is_fall:
-            # scale the coordinates of the bounding box to the original image size
+            # Scale bounding box coordinates to match original image
             bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), image.shape).round()
-            # draw the bounding box on the image
+            # Draw red bounding box for fall detection
             img_result = self.falling_alarm(image_raw, bbox_raw)
         else:
-            # if fall is not detected, use the original image
             img_result = image_raw
-            
-        # Draw the keypoints on the image if show_keypoints is True
+        # Draw keypoints if enabled
         if self.show_keypoints and len(output) > 0:
             for i, pose in enumerate(output):
-                # Get the keypoints
                 keypoints = pose[7:].reshape(-1, 3)
-                # Draw the keypoints on the image
+                # Map keypoints to display coordinates
+                for j in range(keypoints.shape[0]):
+                    if keypoints[j, 2] > 0.5:  # Only use high-confidence keypoints
+                        keypoints[j, 0] = keypoints[j, 0] * scale + pad_x
+                        keypoints[j, 1] = keypoints[j, 1] * scale + pad_y
+                # Draw skeleton using the keypoints
                 plot_skeleton_kpts(img_result, keypoints.flatten(), 3)
-                
         return img_result, is_fall
     
-    # Toggle keypoint display
+    # Intermediate version of inference that works with padded images
+    def inference_on_padded(self, padded_img, orig_img, scale=1.0, pad_x=0, pad_y=0):
+        # Use the padded image for drawing
+        image_raw = padded_img.copy()
+        # Run pose detection on original image
+        img, output = self.get_pose(orig_img)
+        img_pre = self.prepare_image(img)
+        is_fall, bbox = self.fall_detection(output)
+        if is_fall:
+            # Scale bounding box to original image dimensions
+            bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), orig_img.shape).round()
+            # Apply scaling and padding to match display
+            bbox_raw[:, [0, 2]] = bbox_raw[:, [0, 2]] * scale + pad_x
+            bbox_raw[:, [1, 3]] = bbox_raw[:, [1, 3]] * scale + pad_y
+            img_result = self.falling_alarm(image_raw, bbox_raw)
+        else:
+            img_result = image_raw
+        # Draw keypoints if enabled
+        if self.show_keypoints and len(output) > 0:
+            for i, pose in enumerate(output):
+                keypoints = pose[7:].reshape(-1, 3)
+                for j in range(keypoints.shape[0]):
+                    if keypoints[j, 2] > 0.5:
+                        keypoints[j, 0] = keypoints[j, 0] * scale + pad_x
+                        keypoints[j, 1] = keypoints[j, 1] * scale + pad_y
+                plot_skeleton_kpts(img_result, keypoints.flatten(), 3)
+        return img_result, is_fall
+    
+    # Convert keypoints from model space (letterboxed) back to original image space
+    def unletterbox_keypoints(self, kpts, orig_shape, model_shape=(640, 640)):
+        h0, w0 = orig_shape[:2]  # Original height and width
+        h, w = model_shape       # Model input size (640x640)
+        # Calculate gain (scaling factor) from letterbox operation
+        gain = min(w / w0, h / h0)
+        # Calculate padding added during letterbox
+        pad_w = (w - w0 * gain) / 2
+        pad_h = (h - h0 * gain) / 2
+        # Debug info
+        print(f"[DEBUG] Letterbox gain: {gain}, pad_w: {pad_w}, pad_h: {pad_h}, orig_shape: {orig_shape}, model_shape: {model_shape}")
+        # Make a copy of keypoints
+        kpts_out = kpts.copy()
+        # Reverse letterbox transformation for each keypoint
+        for j in range(kpts.shape[0]):
+            if kpts[j, 2] > 0.5:  # Only process high-confidence keypoints
+                # Remove padding and scale back to original dimensions
+                kpts_out[j, 0] = (kpts[j, 0] - pad_w) / gain
+                kpts_out[j, 1] = (kpts[j, 1] - pad_h) / gain
+        return kpts_out
+
+    # Main inference function that handles proper keypoint mapping
+    def inference_and_draw_on_display(self, orig_img, padded_img, scale, pad_x, pad_y, new_width, new_height):
+        # Debug info about display parameters
+        print(f"[DEBUG] Display scale: {scale}, pad_x: {pad_x}, pad_y: {pad_y}, new_width: {new_width}, new_height: {new_height}")
+        print(f"[DEBUG] Original image shape: {orig_img.shape}, Padded image shape: {padded_img.shape}")
+        
+        # Get pose detection from the model
+        img, output = self.get_pose(orig_img)
+        img_pre = self.prepare_image(img)
+        is_fall, bbox = self.fall_detection(output)
+        img_result = padded_img.copy()
+        
+        # Draw fall detection bounding box if a fall is detected
+        if is_fall:
+            bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), orig_img.shape).round()
+            bbox_raw[:, [0, 2]] = bbox_raw[:, [0, 2]] * scale + pad_x
+            bbox_raw[:, [1, 3]] = bbox_raw[:, [1, 3]] * scale + pad_y
+            img_result = self.falling_alarm(img_result, bbox_raw)
+        
+        # Draw keypoints if enabled
+        if self.show_keypoints and len(output) > 0:
+            for i, pose in enumerate(output):
+                # Extract keypoints from model output
+                kpts = pose[7:].reshape(-1, 3)
+                
+                # Debug info for first keypoint
+                print(f"[DEBUG] First keypoint from model: {kpts[0] if kpts.shape[0] > 0 else 'N/A'}")
+                
+                # Convert keypoints from model space to original image space
+                kpts_orig = self.unletterbox_keypoints(kpts, orig_img.shape)
+                print(f"[DEBUG] First keypoint after unletterbox: {kpts_orig[0] if kpts_orig.shape[0] > 0 else 'N/A'}")
+                
+                # Create a copy for visualization
+                kpts_display = kpts_orig.copy()
+                
+                # Map each keypoint to display coordinates
+                for j in range(kpts_orig.shape[0]):
+                    if kpts_orig[j, 2] > 0.5:  # Only process high-confidence keypoints
+                        # X-coordinate: Standard scaling
+                        x = int(kpts_orig[j, 0] * scale + pad_x)
+                        
+                        # Y-coordinate: Apply standard scaling plus y-offset correction
+                        # Calculate the offset as a percentage of the image height
+                        y_offset = int(new_height * self.y_offset_factor)
+                        y = int(kpts_orig[j, 1] * scale + pad_y + y_offset)
+                        
+                        # Update keypoints for skeleton drawing
+                        kpts_display[j, 0] = x
+                        kpts_display[j, 1] = y
+                
+                # Draw the skeleton using the transformed keypoints
+                plot_skeleton_kpts(img_result, kpts_display.flatten(), 3)
+                
+                # Debug info for y-offset
+                print(f"[DEBUG] Current y_offset_factor: {self.y_offset_factor}, y_offset: {y_offset}")
+        
+        return img_result, is_fall
+    
+    # Toggle keypoint display on/off
     def toggle_keypoints(self):
         self.show_keypoints = not self.show_keypoints
         return self.show_keypoints
     
-    # draw the bounding box on the image
+    # Draw red bounding box for fall detection
     def falling_alarm(self, image, bboxes):
         for box in bboxes:
             cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color=(0, 0, 255),
                         thickness=5, lineType=cv2.LINE_AA)
         return image
     
+    # Process image through the YOLOv7 model to get pose detection
     def get_pose(self, image):
-        # letterbox: resize the image to the target size(640x640) while maintaining the aspect ratio
+        # Resize image to 640x640 while maintaining aspect ratio (letterbox)
         image = letterbox(image, 640, stride=64, auto=True)[0]
+        # Convert to PyTorch tensor
         image = transforms.ToTensor()(image)
+        # Convert to batch format (add dimension)
         image = torch.tensor(np.array([image.numpy()]))
+        # Use half precision if GPU available
         if torch.cuda.is_available():
             image = image.half().to(self.device)
+        # Run inference without gradient calculation
         with torch.no_grad():
-            # forward pass: pass the image through the model to get the output(first layer object detection)
+            # Forward pass through the model
             output, _ = self.model(image)
 
-        # filter out the low confidence detections(good for reducing false positives or reducing any other detections)
+        # Filter out low confidence detections using non-max suppression
         output = non_max_suppression_kpt(output, 0.25, 0.65, nc=self.model.yaml['nc'], nkpt=self.model.yaml['nkpt'],
                                         kpt_label=True)
+        # Process output to extract keypoints
         with torch.no_grad():
-            # keypoint detection
             output = output_to_keypoint(output)
 
-        # return the image and the output(keypoints)
         return image, output
     
-    # translate to opencv readable format(convert to BGR(opencv default) format)
+    # Convert PyTorch tensor to OpenCV image format
     def prepare_image(self, image):
+        # Rearrange dimensions and scale to 0-255
         _img = image[0].permute(1, 2, 0) * 255
+        # Convert to NumPy array
         _img = _img.cpu().numpy().astype(np.uint8)
+        # Convert color space from BGR to RGB
         _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
+        # Convert back to BGR (OpenCV default)
         img = cv2.cvtColor(_img, cv2.COLOR_RGB2BGR)
         return img
     
-    # scale the coordinates of the bounding box to the original image size
+    # Scale coordinates from model space to original image space
     def scale_coords(self, img1_shape, coords, img0_shape, ratio_pad=None):
-        if ratio_pad is None:  # calculate from img0_shape
-            gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-            pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+        if ratio_pad is None:  # Calculate from img0_shape
+            # Calculate gain (scaling factor)
+            gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])
+            # Calculate padding
+            pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2
         else:
             gain = ratio_pad[0][0]
             pad = ratio_pad[1]
+        # Remove padding
         coords[:, [0, 2]] -= pad[0]  # x padding
         coords[:, [1, 3]] -= pad[1]  # y padding
+        # Scale coordinates
         coords[:, :4] /= gain
+        # Ensure coordinates are within image boundaries
         self.clip_coords(coords, img0_shape)
         return coords
 
-    # clip the coordinates of the bounding box to the image size(checking if the coordinates are within the image boundaries)
+    # Ensure coordinates are within image boundaries
     def clip_coords(self, boxes, shape):
-        if isinstance(boxes, torch.Tensor): 
+        if isinstance(boxes, torch.Tensor):  # For PyTorch tensors
             boxes[:, 0].clamp_(0, shape[1])  # x1
             boxes[:, 1].clamp_(0, shape[0])  # y1
             boxes[:, 2].clamp_(0, shape[1])  # x2
             boxes[:, 3].clamp_(0, shape[0])  # y2
-        else:
+        else:  # For NumPy arrays
             boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
             boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
 
-    # fall detection algorithm
+    # Algorithm to detect if a person is falling
     def fall_detection(self, poses):
         for pose in poses:
+            # Calculate bounding box coordinates
             xmin, ymin = (pose[2] - pose[4] / 2), (pose[3] - pose[5] / 2)
             xmax, ymax = (pose[2] + pose[4] / 2), (pose[3] + pose[5] / 2)
+            
+            # Extract keypoint coordinates
             left_shoulder_y = pose[23]
             left_shoulder_x = pose[22]
             right_shoulder_y = pose[26]
             left_body_y = pose[41]
             left_body_x = pose[40]
             right_body_y = pose[44]
+            
+            # Calculate length factor (distance between shoulder and body)
             len_factor = math.sqrt(((left_shoulder_y - left_body_y) ** 2 + (left_shoulder_x - left_body_x) ** 2))
+            
+            # Extract foot positions
             left_foot_y = pose[53]
             right_foot_y = pose[56]
+            
+            # Calculate bounding box dimensions
             dx = int(xmax) - int(xmin)
             dy = int(ymax) - int(ymin)
             difference = dy - dx
+            
+            # Fall detection logic based on body keypoint relationships
+            # Checks if shoulders are too close to feet, or if width > height
             if left_shoulder_y > left_foot_y - len_factor and left_body_y > left_foot_y - (
                     len_factor / 2) and left_shoulder_y > left_body_y - (len_factor / 2) or (
                     right_shoulder_y > right_foot_y - len_factor and right_body_y > right_foot_y - (
@@ -154,3 +293,9 @@ class FallDetector(object):
                     or difference < 0:
                 return True, [xmin, ymin, xmax, ymax]
         return False, []
+
+    # Method to adjust the y-offset factor
+    def set_y_offset_factor(self, factor):
+        """Set the y-offset factor for keypoint positioning (0.0 to 1.0)"""
+        self.y_offset_factor = max(0.0, min(1.0, factor))  # Clamp between 0 and 1
+        return self.y_offset_factor

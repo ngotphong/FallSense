@@ -1,135 +1,210 @@
 # coding=utf-8
-import os
-import json, time
-import threading
-import cv2
-import numpy as np
-from PIL import Image
-from PyQt5 import QtGui
-from PyQt5.QtWidgets import QLabel, QSizePolicy
-from qt_thread_updater import get_updater
-from src import config as co
-from src.Fall_detection import FallDetector
+import os                  # Operating system functions
+import json, time          # JSON handling and time functions
+import threading           # Threading for parallel execution
+import cv2                 # OpenCV for image processing
+import numpy as np         # Numerical operations
+from PIL import Image      # Image processing
+from PyQt5 import QtGui    # PyQt5 GUI components
+from PyQt5.QtWidgets import QLabel, QSizePolicy  # PyQt5 widgets
+from qt_thread_updater import get_updater  # Thread-safe UI updates
+from src import config as co  # Import configuration
+from src.Fall_detection import FallDetector  # Import fall detection class
 
 class Main:
     def __init__(self, MainGUI):
+        # Store reference to the main GUI
         self.MainGUI = MainGUI
+        # Initialize camera variables
         self.camera = None
         self.cam_availible = False
         self.start_camera = True
-        # Initialize with show_keypoints=False
+        # Create fall detector with keypoints initially hidden
         self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'cpu', show_keypoints=False)
         
     # Toggle keypoints on/off
     def toggle_keypoints(self):
+        # Call the toggle method in FallDetector
         show_keypoints = self.fall_detect.toggle_keypoints()
+        # Update button text based on state
         if show_keypoints:
             get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Hide Keypoints")
         else:
             get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Show Keypoints")
+        return show_keypoints
         
-    # basically turning an opencv image into a QPixmap object for the GUI display    
-    def img_cv_2_qt(self, img_cv):
-        # extracts the image dimesion from the passed in opencv image
+    # Convert OpenCV image to QPixmap for display in Qt GUI
+    def img_cv_2_qt(self, img_cv, target_label=None, maintain_aspect_ratio=True, return_padded_img=False):
+        # Get image dimensions
         height, width, channel = img_cv.shape
-        # calculates the number of bytes per line in the image
+        # Initialize scaling and padding variables
+        scale = 1.0
+        pad_x = 0
+        pad_y = 0
+        padded_img = img_cv
+        new_width = width
+        new_height = height
+        
+        # If a target label is provided, scale the image to fit it
+        if target_label:
+            label_size = target_label.size()
+            label_w, label_h = label_size.width(), label_size.height()
+            
+            if maintain_aspect_ratio:
+                # Calculate scaling factor to fit image in label while maintaining aspect ratio
+                width_ratio = label_w / width
+                height_ratio = label_h / height
+                scale = min(width_ratio, height_ratio)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                
+                # Resize image using the calculated scale
+                padded_img = cv2.resize(img_cv, (new_width, new_height), interpolation=cv2.INTER_AREA)
+                
+                # Calculate padding to center the image in the label
+                pad_x = (label_w - new_width) // 2
+                pad_y = (label_h - new_height) // 2
+                
+                # Add padding to the image
+                padded_img = cv2.copyMakeBorder(padded_img, pad_y, label_h - new_height - pad_y, 
+                                               pad_x, label_w - new_width - pad_x, 
+                                               cv2.BORDER_CONSTANT, value=[0,0,0])
+            else:
+                # Resize to fit label exactly (may distort aspect ratio)
+                padded_img = cv2.resize(img_cv, (label_w, label_h), interpolation=cv2.INTER_AREA)
+                new_width = label_w
+                new_height = label_h
+                
+        # Get dimensions of the padded image
+        height, width, channel = padded_img.shape
         bytes_per_line = channel * width
-        # converts the opencv image to a QImage object
-        img_qt = QtGui.QImage(img_cv, width, height, bytes_per_line, QtGui.QImage.Format_RGB888).rgbSwapped()
-        # converts the QImage object to a QPixmap object
-        return QtGui.QPixmap.fromImage(img_qt)
+        
+        # Convert OpenCV image to Qt image
+        img_qt = QtGui.QImage(padded_img, width, height, bytes_per_line, QtGui.QImage.Format_RGB888).rgbSwapped()
+        
+        # Return either the padded image or the QPixmap based on the parameter
+        if return_padded_img:
+            return padded_img, scale, pad_x, pad_y, new_width, new_height
+        return QtGui.QPixmap.fromImage(img_qt), scale, pad_x, pad_y, new_width, new_height
     
-    # start the video capture device 
+    # Initialize camera or video capture device
     def init_devices(self, url_camera):
+        # Create VideoCapture object
         self.camera = cv2.VideoCapture(url_camera) 
-        # check if camera/video is reading and reads the first frame from the source   
+        # Read first frame to check if camera/video is available
         self.cam_availible, frame = self.camera.read()
         if not self.cam_availible:
+            # If camera not available, show error
             self.start_camera = False
             self.MainGUI.MessageBox_signal.emit("Error: Camera not found", "error")
         else:
             self.start_camera = True
 
-    # camera detection function 
-    def auto_camera(self):
-        url_camera = co.CAMERA_DEVICE
-        self.init_devices(url_camera)
-        while self.cam_availible and self.start_camera:
-            try:
-                cam_availible, frame = self.camera.read()
-                self.cam_availible = cam_availible
-                if self.cam_availible and self.start_camera:
-                    img_result, is_fall = self.fall_detect.inference(frame)
-                    get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
-                    if is_fall:
-                        image_view = img_result.copy()
-                        cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-                        get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
-                        get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
-                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
-                    else:
-                        get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
-                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
-                else:
-                    break
-            except Exception as e:
-                print("Bug: ", e)
-        self.close_camera()
-    
-    # video detection function 
-    def auto_video(self, path_video):
-        url_camera = path_video
-        self.init_devices(url_camera)
-        while self.cam_availible and self.start_camera:
-            try:
-                cam_availible, frame = self.camera.read()
-                self.cam_availible = cam_availible
-                if self.cam_availible and self.start_camera:
-                    img_result, is_fall = self.fall_detect.inference(frame)
-                    get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
-                    if is_fall:
-                        image_view = img_result.copy()
-                        cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-                        get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
-                        get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
-                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
-                    else:
-                        get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
-                        get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
-    
-                else:
-                    break
-            except Exception as e:
-                print("Bug: ", e)
-        self.close_camera()
-    
-    # manual image detection function 
-    def manual_image(self, path_image):
-        image = cv2.imread(path_image)
-        img_result, is_fall = self.fall_detect.inference(image)
-        get_updater().call_latest(self.MainGUI.image_display.setPixmap, self.img_cv_2_qt(img_result))
+    # Process and display a frame (common function for camera, video, and image)
+    def process_and_display(self, frame, orig_img=None):
+        # If no original image provided, use the frame
+        if orig_img is None:
+            orig_img = frame
+            
+        # Resize and pad the original image to fit the display label
+        padded_img, scale, pad_x, pad_y, new_width, new_height = self.img_cv_2_qt(
+            orig_img, target_label=self.MainGUI.image_display, return_padded_img=True)
+            
+        # Run inference on the original image and draw results on padded image
+        img_result, is_fall = self.fall_detect.inference_and_draw_on_display(
+            orig_img, padded_img, scale, pad_x, pad_y, new_width, new_height)
+            
+        # Convert result to QPixmap and display it
+        pixmap, _, _, _, _, _ = self.img_cv_2_qt(img_result, target_label=self.MainGUI.image_display)
+        get_updater().call_latest(self.MainGUI.image_display.setPixmap, pixmap)
+        
+        # If fall detected, update UI to show warning
         if is_fall:
+            # Create copy of result image
             image_view = img_result.copy()
-            cv2.putText(image_view, 'Person Falling down', (20, 50), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
-            get_updater().call_latest(self.MainGUI.result_label.setPixmap, self.img_cv_2_qt(image_view))
+            # Add text indicating fall
+            cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], 
+                       thickness=2, lineType=cv2.LINE_AA)
+            # Display in result label
+            pixmap, _, _, _, _, _ = self.img_cv_2_qt(image_view, target_label=self.MainGUI.result_label)
+            get_updater().call_latest(self.MainGUI.result_label.setPixmap, pixmap)
+            # Update status indicators
             get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
             get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
         else:
+            # If no fall, show OK status
             get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
             get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
+
+    # Process live camera feed
+    def auto_camera(self):
+        # Get camera device from config
+        url_camera = co.CAMERA_DEVICE
+        # Initialize camera
+        self.init_devices(url_camera)
+        # Process frames while camera is available and not stopped
+        while self.cam_availible and self.start_camera:
+            try:
+                # Read frame from camera
+                cam_availible, frame = self.camera.read()
+                self.cam_availible = cam_availible
+                if self.cam_availible and self.start_camera:
+                    # Process and display the frame
+                    self.process_and_display(frame)
+                else:
+                    break
+            except Exception as e:
+                print("Bug: ", e)
+        # Close camera when done
+        self.close_camera()
+
+    # Process video file
+    def auto_video(self, path_video):
+        # Use video file path as camera source
+        url_camera = path_video
+        # Initialize video
+        self.init_devices(url_camera)
+        # Process frames while video is available and not stopped
+        while self.cam_availible and self.start_camera:
+            try:
+                # Read frame from video
+                cam_availible, frame = self.camera.read()
+                self.cam_availible = cam_availible
+                if self.cam_availible and self.start_camera:
+                    # Process and display the frame
+                    self.process_and_display(frame)
+                else:
+                    break
+            except Exception as e:
+                print("Bug: ", e)
+        # Close video when done
+        self.close_camera()
+
+    # Process static image
+    def manual_image(self, path_image):
+        # Read image from file
+        image = cv2.imread(path_image)
+        # Process and display the image
+        self.process_and_display(image)
     
-    # close the camera/video capture device 
+    # Close camera or video capture
     def close_camera(self):
         try:
+            # Set flag to stop processing
             self.start_camera = False
+            # Release camera if it was available
             if self.cam_availible:
                 self.camera.release()
+            # Reset camera variables
             self.camera = None
             self.cam_availible = False
             
+            # Wait for resources to be released
             time.sleep(1)
+            # Clear display labels
             self.MainGUI.image_display.clear()
             self.MainGUI.result_label.clear()
+            # Update status indicators
             get_updater().call_latest(self.MainGUI.error_label.setText, "STOP")
             get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 244, 0);")
 
