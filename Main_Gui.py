@@ -37,18 +37,11 @@ class MainGUI(QtWidgets.QMainWindow):
         # Connect button signals to slots
         self.camera_mode_button.clicked.connect(self.open_camera)  # Camera mode
         self.video_mode_button.clicked.connect(self.open_video)    # Video mode
-        self.image_mode_button.clicked.connect(self.manual)        # Image mode
+        # Remove image mode button connection
         self.keypoint_toggle_button.clicked.connect(self.toggle_keypoints)  # Toggle keypoints
-        self.keypoint_toggle_button.setText("Show Keypoints")      # Set initial button text
+        self.keypoint_toggle_active = False  # Track toggle state
         
-        # Configure the stop button
-        self.stop_button = self.findChild(QPushButton, "pushButton_8")
-        if self.stop_button:
-            self.stop_button.setText("Stop")
-            self.stop_button.setIcon(QIcon("icons/stop.png"))
-            self.stop_button.setIconSize(QSize(35, 35))
-            self.stop_button.clicked.connect(self.stop)
-            self.stop_button.setEnabled(False)  # Initially disabled
+        # Stop button removed - pushButton_8 remains in original state
         
         # Connect message box signal to slot
         self.MessageBox_signal.connect(self.MessageBox_slot)
@@ -69,24 +62,30 @@ class MainGUI(QtWidgets.QMainWindow):
     
     def toggle_keypoints(self):
         # Toggle keypoint display via Main class
-        self.Main.toggle_keypoints()
+        show_keypoints = self.Main.toggle_keypoints()
+        self.keypoint_toggle_active = show_keypoints
+        if show_keypoints:
+            self.keypoint_toggle_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+        else:
+            self.keypoint_toggle_button.setStyleSheet("")
     
     def open_camera(self):
         try:
+            # Close any existing camera/video first
+            if hasattr(self, 'Main') and self.Main:
+                self.Main.reset_camera()
+                
             # Update UI for camera mode
-            self.update_window("start", name="auto_camera")
+            self.update_window(name="auto_camera")
             # Start camera processing in background thread
             Timer.Timer(function=self.Main.auto_camera, name="auto_camera").start()
         except Exception as e:
-            # Show error and stop on failure
+            # Show error on failure
             self.MessageBox_signal.emit(str(e), "error")
             self.MessageBox_signal.emit("Có lỗi xảy ra !", "error")  # "An error occurred!"
-            self.stop()
 
     def open_video(self):
         try:
-            # Update UI for video mode
-            self.update_window("start", name="auto_video")
             # Show file dialog to select video
             options = QtWidgets.QFileDialog.Options()
             video_file, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -94,88 +93,40 @@ class MainGUI(QtWidgets.QMainWindow):
                 "Video (*.mp4 *.avi *.wmv *.mkv)", options=options)
             
             if video_file:
+                # Close any existing camera/video first
+                if hasattr(self, 'Main') and self.Main:
+                    self.Main.reset_camera()
+                    
+                # Update UI for video mode
+                self.update_window(name="auto_video")
                 # Start video processing in background thread
                 Timer.Timer(function=self.Main.auto_video, name="auto_video", 
                            args=[video_file]).start()
 
         except Exception as e:
-            # Show error and stop on failure
-            self.MessageBox_signal.emit(str(e), "error")
-            self.MessageBox_signal.emit("Có lỗi xảy ra !", "error")  # "An error occurred!"
-            self.stop()
-    
-    def manual(self):
-        try:
-            # Update UI for image mode
-            self.update_window("start", name="manual")
-            # Show file dialog to select image
-            options = QtWidgets.QFileDialog.Options()
-            img_file, _ = QtWidgets.QFileDialog.getOpenFileName(
-                self, "QFileDialog.getOpenFileName()", "", 
-                "Images (*.png *.jpg *.jpeg *.bmp)", options=options)
-            
-            if img_file:
-                # Process selected image
-                self.Main.manual_image(img_file)
-            
-        except Exception as e:
             # Show error on failure
             self.MessageBox_signal.emit(str(e), "error")
             self.MessageBox_signal.emit("Có lỗi xảy ra !", "error")  # "An error occurred!"
     
-    def stop(self):
-        # Update UI to stopped state
-        self.update_window("stop")
-        # Close camera/video
-        self.Main.close_camera()
-        
-    def update_window(self, typ, name="auto_camera"):
+    # Stop method removed
+    
+    def update_window(self, name="auto_camera"):
         # Debug info
-        print("update_window called", typ, name)
+        print("update_window called", name)
         
-        if typ == "start":
-            # Enable stop button when starting
-            if hasattr(self, 'stop_button') and self.stop_button:
-                self.stop_button.setEnabled(True)
-                
-            if name == "manual":
-                # For image mode
-                self.image_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
-                # Disable mode buttons during processing
-                for item in (self.camera_mode_button, self.image_mode_button, self.video_mode_button):
-                    item.setEnabled(False)
-                # Enable keypoint toggle
-                self.keypoint_toggle_button.setEnabled(True)
-            else:
-                # Enable keypoint toggle for camera/video modes
-                self.keypoint_toggle_button.setEnabled(True)
-                
-                if name == "auto_camera":
-                    # For camera mode
-                    self.camera_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
-                    # Disable mode buttons during processing
-                    for item in (self.camera_mode_button, self.image_mode_button):
-                        item.setEnabled(False)
-
-                elif name == "auto_video":
-                    # For video mode
-                    for item in (self.camera_mode_button, self.image_mode_button, self.video_mode_button):
-                        item.setEnabled(False)
-                        item.setStyleSheet("")
-                    self.video_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
-
-        elif typ == "stop":
-            # Disable stop button when stopped
-            if hasattr(self, 'stop_button') and self.stop_button:
-                self.stop_button.setEnabled(False)
-                
-            # Disable keypoint toggle when stopped
-            for item in [self.keypoint_toggle_button]:
-                item.setEnabled(False)
-            # Enable all mode buttons and reset styles
-            for item in (self.camera_mode_button, self.image_mode_button, self.video_mode_button):
-                item.setEnabled(True)
-                item.setStyleSheet("")
+        # Reset all button styles
+        for item in (self.camera_mode_button, self.video_mode_button, self.keypoint_toggle_button):
+            item.setEnabled(True)
+            item.setStyleSheet("")
+            
+        # Set specific mode button style
+        if name == "auto_camera":
+            self.camera_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+        elif name == "auto_video":
+            self.video_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+        
+        # Enable keypoint toggle for all modes
+        self.keypoint_toggle_button.setEnabled(True)
     
     # Handle window close event
     def closeEvent(self, event):
@@ -212,14 +163,15 @@ class MainGUI(QtWidgets.QMainWindow):
             disk_stats = psutil.disk_usage("/")
             
             # Update progress bars
-            get_updater().call_latest(self.progressBar_CPU.setValue, int(cpu_percent))
-            get_updater().call_latest(self.progressBar_RAM.setValue, int(mem_stats.percent))
-            get_updater().call_latest(self.progressBar_DISK.setValue, int(disk_stats.percent))
+            get_updater().call_latest(self.ui.progressBar_CPU.setValue, int(cpu_percent))
+            get_updater().call_latest(self.ui.progressBar_RAM.setValue, int(mem_stats.percent))
+            get_updater().call_latest(self.ui.progressBar_DISK.setValue, int(disk_stats.percent))
             
             # Update text labels with GB values
-            get_updater().call_latest(self.ram.setText, 
+            get_updater().call_latest(self.ui.cpu.setText, f"{round(cpu_percent, 1)}")
+            get_updater().call_latest(self.ui.ram.setText, 
                                      f"{round(mem_stats.used/1000000000, 1)}/{round(mem_stats.total/1000000000, 1)}")
-            get_updater().call_latest(self.disk.setText, 
+            get_updater().call_latest(self.ui.disk.setText, 
                                      f"{round(disk_stats.used/1000000000, 1)}/{round(disk_stats.total/1000000000)}")
         except Exception as e:
             # Silently ignore errors in performance monitoring

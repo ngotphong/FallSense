@@ -26,11 +26,7 @@ class Main:
     def toggle_keypoints(self):
         # Call the toggle method in FallDetector
         show_keypoints = self.fall_detect.toggle_keypoints()
-        # Update button text based on state
-        if show_keypoints:
-            get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Hide Keypoints")
-        else:
-            get_updater().call_latest(self.MainGUI.keypoint_toggle_button.setText, "Show Keypoints")
+        # Do not set any text on the keypoint toggle button
         return show_keypoints
         
     # Convert OpenCV image to QPixmap for display in Qt GUI
@@ -123,7 +119,7 @@ class Main:
             # Create copy of result image
             image_view = img_result.copy()
             # Add text indicating fall
-            cv2.putText(image_view, 'Person Falling down', (20, 200), 0, 1, [0, 0, 255], 
+            cv2.putText(image_view, 'FALLEN DETECTED', (20, 170), 0, 1, [0, 0, 155], 
                        thickness=2, lineType=cv2.LINE_AA)
             # Display in result label
             pixmap, _, _, _, _, _ = self.img_cv_2_qt(image_view, target_label=self.MainGUI.result_label)
@@ -155,8 +151,8 @@ class Main:
                     break
             except Exception as e:
                 print("Bug: ", e)
-        # Close camera when done
-        self.close_camera()
+        # Clean up when done
+        self.reset_camera()
 
     # Process video file
     def auto_video(self, path_video):
@@ -177,30 +173,34 @@ class Main:
                     break
             except Exception as e:
                 print("Bug: ", e)
-        # Close video when done
-        self.close_camera()
-
-    # Process static image
-    def manual_image(self, path_image):
-        # Read image from file
-        image = cv2.imread(path_image)
-        # Process and display the image
-        self.process_and_display(image)
+        # Clean up when done
+        self.reset_camera()
     
-    # Close camera or video capture
-    def close_camera(self):
+    # Reset camera for switching between inputs
+    def reset_camera(self):
         try:
-            # Set flag to stop processing
+            # Set flag to stop current processing
             self.start_camera = False
-            # Release camera if it was available
-            if self.cam_availible:
+            
+            # Release camera resource if available
+            if self.camera is not None and self.cam_availible:
                 self.camera.release()
+                
             # Reset camera variables
             self.camera = None
             self.cam_availible = False
             
+        except Exception as e:
+            print("Error in reset_camera:", e)
+    
+    # Close camera or video capture
+    def close_camera(self):
+        try:
+            # Reset camera resources
+            self.reset_camera()
+            
             # Wait for resources to be released
-            time.sleep(1)
+            time.sleep(0.5)
             # Clear display labels
             self.MainGUI.image_display.clear()
             self.MainGUI.result_label.clear()
