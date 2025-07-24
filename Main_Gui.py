@@ -26,7 +26,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.pushButton_Image.clicked.connect(self.manual) # the image button
         self.pushButton_Stop.clicked.connect(self.stop) # the stop button
         self.MessageBox_signal.connect(self.MessageBox_slot) # the message box signal
-        self.
         
     def start(self):
         try:
