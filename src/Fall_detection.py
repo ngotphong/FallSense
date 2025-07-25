@@ -38,7 +38,7 @@ class FallDetector(object):
         # If GPU is available, optimize model with half-precision
         if torch.cuda.is_available():
             model = model.half().to(self.device)
-        print("YOLOv7 model loaded")
+        # print("YOLOv7 model loaded")
         return model
     
     # Convert keypoints from model space (letterboxed) back to original image space
@@ -79,7 +79,7 @@ class FallDetector(object):
             bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), orig_img.shape).round()
             bbox_raw[:, [0, 2]] = bbox_raw[:, [0, 2]] * scale + pad_x
             bbox_raw[:, [1, 3]] = bbox_raw[:, [1, 3]] * scale + pad_y
-            print(f"[DEBUG] is_fall: {is_fall}")
+            # print(f"[DEBUG] is_fall: {is_fall}")
             if is_fall:
                 color = (0, 0, 255)  # Red
             else:
@@ -239,7 +239,7 @@ class FallDetector(object):
                     len_factor / 2) and right_shoulder_y > right_body_y - (len_factor / 2)) \
                     or difference < 0:
                 return True, [xmin, ymin, xmax, ymax]
-        return False, [xmin, ymin, xmax, ymax]
+        return False, []
 
     # Method to adjust the y-offset factor
     def set_y_offset_factor(self, factor):

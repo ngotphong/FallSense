@@ -1,32 +1,74 @@
-# coding=utf-8
-import os                  # Operating system functions
-import json, time          # JSON handling and time functions
-import threading           # Threading for parallel execution
-import cv2                 # OpenCV for image processing
-import numpy as np         # Numerical operations
-from PIL import Image      # Image processing
-from PyQt5 import QtGui    # PyQt5 GUI components
-from PyQt5.QtWidgets import QLabel, QSizePolicy  # PyQt5 widgets
-from qt_thread_updater import get_updater  # Thread-safe UI updates
-from src import config as co  # Import configuration
-from src.Fall_detection import FallDetector  # Import fall detection class
+import os         
+import json, time       
+import threading        
+import cv2         
+import numpy as np       
+from PIL import Image
+from PyQt5 import QtGui  
+from PyQt5.QtWidgets import QLabel, QSizePolicy, QFileDialog  
+from qt_thread_updater import get_updater  
+from src import config  
+from src.Fall_detection import FallDetector  
 
 class Main:
     def __init__(self, MainGUI):
-        # Store reference to the main GUI
         self.MainGUI = MainGUI
-        # Initialize camera variables
+        self.flip_horizontal = False
+
         self.camera = None
         self.cam_availible = False
         self.start_camera = True
-        # Create fall detector with keypoints initially hidden
+
         self.fall_detect = FallDetector('weights/fall_detection_person.pt', 'cpu', show_keypoints=False)
         
+        self.auto_record_on_fall = False
+        self.save_folder = None
+        self.recording = False
+        self.video_writer = None
+
+    def set_save_folder(self):
+        folder = QFileDialog.getExistingDirectory(self.MainGUI, "Select Save Folder")
+        if folder:
+            self.save_folder = folder
+
+    def start_recording(self):
+        if self.recording:
+            # print("[DEBUG] Already recording, not starting again.")
+            return
+        if not self.recording and self.cam_availible and self.save_folder:
+            self.recording = True
+            get_updater().call_latest(self.MainGUI.record_display.setText, "RECORDING")
+            get_updater().call_latest(self.MainGUI.record_display.setStyleSheet,"background-color: rgb(255, 0, 0);")
+            filename = time.strftime("recording_%Y_%m_%d_%H_%M_%S.mp4")  # <-- MP4
+            save_path = os.path.join(self.save_folder, filename)
+            # Get frame size (width, height)
+            width = int(self.camera.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = 20  # or use self.camera.get(cv2.CAP_PROP_FPS)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # <-- MP4 codec
+            self.video_writer = cv2.VideoWriter(save_path, fourcc, fps, (width, height))
+            # print(f"[DEBUG] Started recording to {save_path}")
+        else:
+            self.MainGUI.MessageBox_signal.emit("Please set a save folder first or select a video source!", "error")
+            return
+
+    def stop_recording(self):
+        if not self.recording:
+            # print("[DEBUG] Not recording, nothing to stop.")
+            return
+        if self.video_writer:
+            self.video_writer.release()
+            self.video_writer = None
+            get_updater().call_latest(self.MainGUI.record_display.setText, "STOPPED RECORDING")
+            get_updater().call_latest(self.MainGUI.record_display.setStyleSheet,"background-color: rgb(0, 255, 0);")
+            self.recording = False
+            # print(f"[DEBUG] Stopped recording")
+
+
     # Toggle keypoints on/off
     def toggle_keypoints(self):
         # Call the toggle method in FallDetector
         show_keypoints = self.fall_detect.toggle_keypoints()
-        # Do not set any text on the keypoint toggle button
         return show_keypoints
         
     # Convert OpenCV image to QPixmap for display in Qt GUI
@@ -85,12 +127,9 @@ class Main:
     
     # Initialize camera or video capture device
     def init_devices(self, url_camera):
-        # Create VideoCapture object
         self.camera = cv2.VideoCapture(url_camera) 
-        # Read first frame to check if camera/video is available
         self.cam_availible, frame = self.camera.read()
         if not self.cam_availible:
-            # If camera not available, show error
             self.start_camera = False
             self.MainGUI.MessageBox_signal.emit("Error: Camera not found", "error")
         else:
@@ -98,97 +137,112 @@ class Main:
 
     # Process and display a frame (common function for camera, video, and image)
     def process_and_display(self, frame, orig_img=None):
-        # If no original image provided, use the frame
+        # Flip frame if needed
+        if self.flip_horizontal:
+            frame = cv2.flip(frame, 1)
+
         if orig_img is None:
             orig_img = frame
-            
-        # Resize and pad the original image to fit the display label
         padded_img, scale, pad_x, pad_y, new_width, new_height = self.img_cv_2_qt(
             orig_img, target_label=self.MainGUI.image_display, return_padded_img=True)
-            
-        # Run inference on the original image and draw results on padded image
         img_result, is_fall = self.fall_detect.inference_and_draw_on_display(
             orig_img, padded_img, scale, pad_x, pad_y, new_width, new_height)
-            
-        # Convert result to QPixmap and display it
         pixmap, _, _, _, _, _ = self.img_cv_2_qt(img_result, target_label=self.MainGUI.image_display)
         get_updater().call_latest(self.MainGUI.image_display.setPixmap, pixmap)
-        
-        # If fall detected, update UI to show warning
+
+        # Robust auto-recording logic
+        try:
+            if self.auto_record_on_fall:
+                if is_fall:
+                    if not self.recording and self.cam_availible and self.save_folder:
+                        # print("[DEBUG] Auto recording on fall: True")
+                        self.start_recording()
+                else:
+                    if self.recording:
+                        self.stop_recording()
+        except Exception as e:
+            # print(f"[ERROR] Auto-recording logic: {e}")
+            self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}")
+
         if is_fall:
-            # Create copy of result image
             image_view = img_result.copy()
-            # Add text indicating fall
-            cv2.putText(image_view, 'FALLEN DETECTED', (20, 170), 0, 1, [0, 0, 155], 
-                       thickness=2, lineType=cv2.LINE_AA)
-            # Display in result label
+            cv2.putText(image_view, 'FALLEN DETECTED', (20, 170), 0, 1, [0, 0, 255], thickness=2, lineType=cv2.LINE_AA)
             pixmap, _, _, _, _, _ = self.img_cv_2_qt(image_view, target_label=self.MainGUI.result_label)
             get_updater().call_latest(self.MainGUI.result_label.setPixmap, pixmap)
-            # Update status indicators
             get_updater().call_latest(self.MainGUI.status_label.setText, "FALLEN")
             get_updater().call_latest(self.MainGUI.status_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
         else:
-            # If no fall, show OK status
             get_updater().call_latest(self.MainGUI.status_label.setText, "NORMAL")
             get_updater().call_latest(self.MainGUI.status_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
 
+        # Save frame if recording
+        try:
+            if self.recording and self.video_writer:
+                self.video_writer.write(frame)
+        except Exception as e:
+            # print(f"[ERROR] Writing video frame: {e}")
+            self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}")
+
     # Process live camera feed
     def camera_mode(self):
-        # Get camera device from config
-        url_camera = co.CAMERA_DEVICE
-        # Initialize camera
+        url_camera = config.CAMERA_DEVICE
         self.init_devices(url_camera)
-        # Process frames while camera is available and not stopped
         while self.cam_availible and self.start_camera:
             try:
-                # Read frame from camera
                 cam_availible, frame = self.camera.read()
+                if not cam_availible:
+                    time.sleep(0.05)  # Small delay before retrying
+                    continue
                 self.cam_availible = cam_availible
-                if self.cam_availible and self.start_camera:
-                    # Process and display the frame
+                if self.start_camera and self.cam_availible:
                     self.process_and_display(frame)
                 else:
                     break
             except Exception as e:
-                print("Bug: ", e)
-        # Clean up when done
+                self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}")
         self.reset_camera()
 
     # Process video file
     def video_mode(self, path_video):
-        # Use video file path as camera source
         url_camera = path_video
-        # Initialize video
         self.init_devices(url_camera)
-        # Process frames while video is available and not stopped
+        if self.camera is None:
+            self.MainGUI.MessageBox_signal.emit("Error: Could not open video source.", "error")
+            return
+        last_is_fall = False
         while self.cam_availible and self.start_camera:
             try:
-                # Read frame from video
                 cam_availible, frame = self.camera.read()
+                if not cam_availible:
+                    time.sleep(0.05)
+                    continue
                 self.cam_availible = cam_availible
-                if self.cam_availible and self.start_camera:
-                    # Process and display the frame
-                    self.process_and_display(frame)
+                if self.start_camera and self.cam_availible:
+                    try:
+                        padded_img, scale, pad_x, pad_y, new_width, new_height = self.img_cv_2_qt(
+                            frame, target_label=self.MainGUI.image_display, return_padded_img=True)
+                        img_result, is_fall = self.fall_detect.inference_and_draw_on_display(
+                            frame, padded_img, scale, pad_x, pad_y, new_width, new_height)
+                        last_is_fall = is_fall
+                        self.process_and_display(frame, orig_img=frame)
+                    except Exception as e:
+                        self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}", "error")
                 else:
                     break
             except Exception as e:
-                print("Bug: ", e)
-        # Clean up when done
+                self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}", "error")
         self.reset_camera()
     
     # Reset camera for switching between inputs
     def reset_camera(self):
         try:
-            # Set flag to stop current processing
             self.start_camera = False
             
-            # Release camera resource if available
             if self.camera is not None and self.cam_availible:
                 self.camera.release()
                 
-            # Reset camera variables
             self.camera = None
             self.cam_availible = False
             
         except Exception as e:
-            print("Error in reset_camera:", e)
+            self.MainGUI.MessageBox_signal.emit(f"Error: {str(e)}")
