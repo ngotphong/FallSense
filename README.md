@@ -43,7 +43,7 @@ App_falling/
 │ ├── fall_detection_person.pt
 ```
 
-- Download and put this in the same position, make any changes if needed
+- Download and put this in the same position, make any changes if needed ([Hugging Face repo](https://huggingface.co/ngotphong/FallSense/tree/main))
 
 ## Step 5: Run The FallSense:
 
