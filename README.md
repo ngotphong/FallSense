@@ -2,50 +2,137 @@
 
 # FallSense
 
-A open-source AI application with sleek UI with fine-tuned model using PyTorch based YOLOv7 application for stroke detection and monitoring old patients and targets at risk.
+**FallSense** is an open-source AI application with a sleek UI, powered by a fine-tuned YOLOv7 model (PyTorch) for real-time stroke and fall detection. Designed for monitoring elderly patients and individuals at risk, FallSense provides instant alerts, automatic video recording, and actionable analytics to help caregivers and medical professionals respond quickly and effectively.
 
-# Features
+---
 
-## Real Time Stroke Detection
+## 🚀 Features
 
-- This feature is powered state-of-the-art model: YOLOv7 built with the Pytorch library. The original model from [WongKinYiu](https://github.com/WongKinYiu/yolov7) is fined-tuned with more CCTV footages of sudden stroke with Colab for better detection capabilities.
+### 1. Real-Time Stroke & Fall Detection
 
-## Stroke Detection Analysis
+- Utilizes a state-of-the-art YOLOv7 model, fine-tuned on real CCTV footage for robust detection of sudden strokes and falls.
+- Fast, accurate, and reliable—works with live camera feeds or video files.
 
-- This feature allows the user to load stroke recorded moments for the system to analyze and train upon.
+### 2. Automatic Event Recorder
 
-## Automatic Recorder
+- Instantly records and saves video clips when a fall or stroke is detected.
+- Footage is stored locally for later review, medical analysis, or model retraining.
 
-- This feature allows the user to automatically record the moment an imminent stroke is detected at home. The footage is stored locally and could be of great use for doctors for further analysis or to re-train the model.
+### 3. Detection Analysis & Review
 
-# Instruction
+- Load and analyze previously recorded events.
+- Useful for both medical professionals and AI researchers.
 
-## Step 1: Prepare Environment
+### 4. User-Friendly Interface
 
-- Install Miniconda
-- Create new virtual environment: `conda create -n <env_name> python=3.11.10`
-- To access the virtual environment: `conda activate <env_name>`
+- Modern, intuitive PyQt5 GUI.
+- Easy toggles for camera, video, and keypoint visualization.
+- Customizable settings for recording, saving, and flipping video feeds.
 
-## Step 2: Clone this repo:
+---
 
-- `git clone https://github.com/ngotphong/fall-detection.git`
-- Install all the dependencies in the requirments.txt: `pip install -r requirements.txt`
+## 📸 Screenshots
 
-## Step 3: Install Libraries and Dependencies:
+<!-- Add screenshots or GIFs here to showcase your UI and features -->
 
-- `pip install -r requirements.txt`
+---
 
-## Step 4: Prepare Weight:
+## 🛠️ Installation & Setup
+
+### 1. **Prepare Environment**
+
+- Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+- Create a new virtual environment:
+  ```sh
+  conda create -n fallsense python=3.11.10
+  conda activate fallsense
+  ```
+
+### 2. **Clone the Repository**
+
+```sh
+git clone https://github.com/ngotphong/fall-detection.git
+cd fall-detection
+```
+
+### 3. **Install Dependencies**
+
+```sh
+pip install -r requirements.txt
+```
+
+### 4. **Download Model Weights**
+
+- Download the fine-tuned YOLOv7 weights from [Hugging Face](https://huggingface.co/ngotphong/FallSense/tree/main)
+- Place the file in the `weights/` directory:
+  ```
+  weights/
+    └── fall_detection_person.pt
+  ```
+
+### 5. **Run FallSense**
+
+```sh
+python Main_Gui.py
+```
+
+---
+
+## 📂 Project Structure
 
 ```
-App_falling/
+FallSense/
+├── GUI/
+│   └── images/
+│       └── logo.png
 ├── weights/
-│ ├── fall_detection_person.pt
+│   └── fall_detection_person.pt
+├── Main_Gui.py
+├── src/
+│   └── ...
+├── requirements.txt
+└── README.md
 ```
 
-- Download and put this in the same position, make any changes if needed ([Hugging Face repo](https://huggingface.co/ngotphong/FallSense/tree/main))
+---
 
-## Step 5: Run The FallSense:
+**Tips:**
 
-- `cd App_falling`
-- `python Main_Gui.py`
+- Add your screenshots/GIFs in the "Screenshots" section.
+- Update the Hugging Face/model links as needed.
+- Add badges (build, license, etc.) at the top for extra polish.
+
+Let me know if you want a more minimal or more technical version!
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+- Please open issues for bug reports or feature requests.
+- Pull requests are encouraged for improvements, new features, or documentation updates.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgements
+
+- [YOLOv7 by WongKinYiu](https://github.com/WongKinYiu/yolov7)
+- [Hugging Face Model Hosting](https://huggingface.co/ngotphong/FallSense)
+- PyTorch, OpenCV, PyQt5, and the open-source community
+
+---
+
+## 📬 Contact
+
+For questions, support, or collaboration, please open an issue or contact [ngotphong](https://github.com/ngotphong).
+
+---
+
+<!-- Add more badges, images, or links as your project grows! -->
