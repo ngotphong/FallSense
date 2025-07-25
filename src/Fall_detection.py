@@ -41,64 +41,6 @@ class FallDetector(object):
         print("YOLOv7 model loaded")
         return model
     
-    # Legacy inference function (used for simpler cases)
-    def inference(self, image, scale=1.0, pad_x=0, pad_y=0, label_size=None):
-        # Make a copy of the input image
-        image_raw = image.copy()
-        # Get pose detection from the model
-        img, output = self.get_pose(image)
-        # Convert model output to OpenCV format
-        img_pre = self.prepare_image(img)
-        # Detect falls and get bounding boxes
-        is_fall, bbox = self.fall_detection(output)
-        if is_fall:
-            # Scale bounding box coordinates to match original image
-            bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), image.shape).round()
-            # Draw red bounding box for fall detection
-            img_result = self.falling_alarm(image_raw, bbox_raw)
-        else:
-            img_result = image_raw
-        # Draw keypoints if enabled
-        if self.show_keypoints and len(output) > 0:
-            for i, pose in enumerate(output):
-                keypoints = pose[7:].reshape(-1, 3)
-                # Map keypoints to display coordinates
-                for j in range(keypoints.shape[0]):
-                    if keypoints[j, 2] > 0.5:  # Only use high-confidence keypoints
-                        keypoints[j, 0] = keypoints[j, 0] * scale + pad_x
-                        keypoints[j, 1] = keypoints[j, 1] * scale + pad_y
-                # Draw skeleton using the keypoints
-                plot_skeleton_kpts(img_result, keypoints.flatten(), 3)
-        return img_result, is_fall
-    
-    # Intermediate version of inference that works with padded images
-    def inference_on_padded(self, padded_img, orig_img, scale=1.0, pad_x=0, pad_y=0):
-        # Use the padded image for drawing
-        image_raw = padded_img.copy()
-        # Run pose detection on original image
-        img, output = self.get_pose(orig_img)
-        img_pre = self.prepare_image(img)
-        is_fall, bbox = self.fall_detection(output)
-        if is_fall:
-            # Scale bounding box to original image dimensions
-            bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), orig_img.shape).round()
-            # Apply scaling and padding to match display
-            bbox_raw[:, [0, 2]] = bbox_raw[:, [0, 2]] * scale + pad_x
-            bbox_raw[:, [1, 3]] = bbox_raw[:, [1, 3]] * scale + pad_y
-            img_result = self.falling_alarm(image_raw, bbox_raw)
-        else:
-            img_result = image_raw
-        # Draw keypoints if enabled
-        if self.show_keypoints and len(output) > 0:
-            for i, pose in enumerate(output):
-                keypoints = pose[7:].reshape(-1, 3)
-                for j in range(keypoints.shape[0]):
-                    if keypoints[j, 2] > 0.5:
-                        keypoints[j, 0] = keypoints[j, 0] * scale + pad_x
-                        keypoints[j, 1] = keypoints[j, 1] * scale + pad_y
-                plot_skeleton_kpts(img_result, keypoints.flatten(), 3)
-        return img_result, is_fall
-    
     # Convert keypoints from model space (letterboxed) back to original image space
     def unletterbox_keypoints(self, kpts, orig_shape, model_shape=(640, 640)):
         h0, w0 = orig_shape[:2]  # Original height and width
@@ -109,7 +51,7 @@ class FallDetector(object):
         pad_w = (w - w0 * gain) / 2
         pad_h = (h - h0 * gain) / 2
         # Debug info
-        print(f"[DEBUG] Letterbox gain: {gain}, pad_w: {pad_w}, pad_h: {pad_h}, orig_shape: {orig_shape}, model_shape: {model_shape}")
+        #print(f"[DEBUG] Letterbox gain: {gain}, pad_w: {pad_w}, pad_h: {pad_h}, orig_shape: {orig_shape}, model_shape: {model_shape}")
         # Make a copy of keypoints
         kpts_out = kpts.copy()
         # Reverse letterbox transformation for each keypoint
@@ -123,22 +65,27 @@ class FallDetector(object):
     # Main inference function that handles proper keypoint mapping
     def inference_and_draw_on_display(self, orig_img, padded_img, scale, pad_x, pad_y, new_width, new_height):
         # Debug info about display parameters
-        print(f"[DEBUG] Display scale: {scale}, pad_x: {pad_x}, pad_y: {pad_y}, new_width: {new_width}, new_height: {new_height}")
-        print(f"[DEBUG] Original image shape: {orig_img.shape}, Padded image shape: {padded_img.shape}")
+        #print(f"[DEBUG] Display scale: {scale}, pad_x: {pad_x}, pad_y: {pad_y}, new_width: {new_width}, new_height: {new_height}")
+        #print(f"[DEBUG] Original image shape: {orig_img.shape}, Padded image shape: {padded_img.shape}")
         
         # Get pose detection from the model
         img, output = self.get_pose(orig_img)
         img_pre = self.prepare_image(img)
         is_fall, bbox = self.fall_detection(output)
         img_result = padded_img.copy()
-        
-        # Draw fall detection bounding box if a fall is detected
-        if is_fall:
+
+        # Draw bounding box in different color depending on is_fall
+        if bbox:  # If there is a bbox, draw it
             bbox_raw = self.scale_coords(img_pre.shape, np.array([bbox]), orig_img.shape).round()
             bbox_raw[:, [0, 2]] = bbox_raw[:, [0, 2]] * scale + pad_x
             bbox_raw[:, [1, 3]] = bbox_raw[:, [1, 3]] * scale + pad_y
-            img_result = self.falling_alarm(img_result, bbox_raw)
-        
+            print(f"[DEBUG] is_fall: {is_fall}")
+            if is_fall:
+                color = (0, 0, 255)  # Red
+            else:
+                color = (0, 255, 0)  # Green
+            img_result = self.draw_bbox(img_result, bbox_raw, color=color)
+
         # Draw keypoints if enabled
         if self.show_keypoints and len(output) > 0:
             for i, pose in enumerate(output):
@@ -146,11 +93,11 @@ class FallDetector(object):
                 kpts = pose[7:].reshape(-1, 3)
                 
                 # Debug info for first keypoint
-                print(f"[DEBUG] First keypoint from model: {kpts[0] if kpts.shape[0] > 0 else 'N/A'}")
+                #print(f"[DEBUG] First keypoint from model: {kpts[0] if kpts.shape[0] > 0 else 'N/A'}")
                 
                 # Convert keypoints from model space to original image space
                 kpts_orig = self.unletterbox_keypoints(kpts, orig_img.shape)
-                print(f"[DEBUG] First keypoint after unletterbox: {kpts_orig[0] if kpts_orig.shape[0] > 0 else 'N/A'}")
+                #print(f"[DEBUG] First keypoint after unletterbox: {kpts_orig[0] if kpts_orig.shape[0] > 0 else 'N/A'}")
                 
                 # Create a copy for visualization
                 kpts_display = kpts_orig.copy()
@@ -174,7 +121,7 @@ class FallDetector(object):
                 plot_skeleton_kpts(img_result, kpts_display.flatten(), 3)
                 
                 # Debug info for y-offset
-                print(f"[DEBUG] Current y_offset_factor: {self.y_offset_factor}, y_offset: {y_offset}")
+                #print(f"[DEBUG] Current y_offset_factor: {self.y_offset_factor}, y_offset: {y_offset}")
         
         return img_result, is_fall
     
@@ -184,10 +131,10 @@ class FallDetector(object):
         return self.show_keypoints
     
     # Draw red bounding box for fall detection
-    def falling_alarm(self, image, bboxes):
+    def draw_bbox(self, image, bboxes, color=(0, 0, 255)):
         for box in bboxes:
-            cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color=(0, 0, 255),
-                        thickness=5, lineType=cv2.LINE_AA)
+            cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color=color,
+                        thickness=2, lineType=cv2.LINE_AA)
         return image
     
     # Process image through the YOLOv7 model to get pose detection
@@ -292,7 +239,7 @@ class FallDetector(object):
                     len_factor / 2) and right_shoulder_y > right_body_y - (len_factor / 2)) \
                     or difference < 0:
                 return True, [xmin, ymin, xmax, ymax]
-        return False, []
+        return False, [xmin, ymin, xmax, ymax]
 
     # Method to adjust the y-offset factor
     def set_y_offset_factor(self, factor):

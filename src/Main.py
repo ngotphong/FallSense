@@ -125,15 +125,15 @@ class Main:
             pixmap, _, _, _, _, _ = self.img_cv_2_qt(image_view, target_label=self.MainGUI.result_label)
             get_updater().call_latest(self.MainGUI.result_label.setPixmap, pixmap)
             # Update status indicators
-            get_updater().call_latest(self.MainGUI.error_label.setText, "Fall")
-            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
+            get_updater().call_latest(self.MainGUI.status_label.setText, "FALLEN")
+            get_updater().call_latest(self.MainGUI.status_label.setStyleSheet,"background-color: rgb(255, 0, 0);")
         else:
             # If no fall, show OK status
-            get_updater().call_latest(self.MainGUI.error_label.setText, "OK")
-            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
+            get_updater().call_latest(self.MainGUI.status_label.setText, "NORMAL")
+            get_updater().call_latest(self.MainGUI.status_label.setStyleSheet,"background-color: rgb(0, 255, 0);")
 
     # Process live camera feed
-    def auto_camera(self):
+    def camera_mode(self):
         # Get camera device from config
         url_camera = co.CAMERA_DEVICE
         # Initialize camera
@@ -155,7 +155,7 @@ class Main:
         self.reset_camera()
 
     # Process video file
-    def auto_video(self, path_video):
+    def video_mode(self, path_video):
         # Use video file path as camera source
         url_camera = path_video
         # Initialize video
@@ -192,21 +192,3 @@ class Main:
             
         except Exception as e:
             print("Error in reset_camera:", e)
-    
-    # Close camera or video capture
-    def close_camera(self):
-        try:
-            # Reset camera resources
-            self.reset_camera()
-            
-            # Wait for resources to be released
-            time.sleep(0.5)
-            # Clear display labels
-            self.MainGUI.image_display.clear()
-            self.MainGUI.result_label.clear()
-            # Update status indicators
-            get_updater().call_latest(self.MainGUI.error_label.setText, "STOP")
-            get_updater().call_latest(self.MainGUI.error_label.setStyleSheet,"background-color: rgb(255, 244, 0);")
-
-        except Exception as e:
-                print("Bug: ", e)

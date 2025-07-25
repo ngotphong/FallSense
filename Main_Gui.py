@@ -21,7 +21,7 @@ import json
 # Import custom modules
 from src.Main import Main
 from qt_thread_updater import get_updater
-from src import config as co, Timer
+from src import config, Timer
 
 class MainGUI(QtWidgets.QMainWindow):
     # Define custom signal for message boxes
@@ -32,7 +32,7 @@ class MainGUI(QtWidgets.QMainWindow):
         super(MainGUI, self).__init__()
         
         # Load UI from file
-        self.ui = uic.loadUi(co.MAIN_GUI, self)
+        self.ui = uic.loadUi(config.MAIN_GUI, self)
         
         # Connect button signals to slots
         self.camera_mode_button.clicked.connect(self.open_camera)  # Camera mode
@@ -40,8 +40,6 @@ class MainGUI(QtWidgets.QMainWindow):
         # Remove image mode button connection
         self.keypoint_toggle_button.clicked.connect(self.toggle_keypoints)  # Toggle keypoints
         self.keypoint_toggle_active = False  # Track toggle state
-        
-        # Stop button removed - pushButton_8 remains in original state
         
         # Connect message box signal to slot
         self.MessageBox_signal.connect(self.MessageBox_slot)
@@ -57,15 +55,16 @@ class MainGUI(QtWidgets.QMainWindow):
                        forever=True, interval=2, type="repeat").start()
         except Exception as e:
             # Show error and exit if initialization fails
-            self.MessageBox_signal.emit(str(e), "error")
+            self.MessageBox_signal.critical(str(e), "error")
             sys.exit(1)
     
     def toggle_keypoints(self):
         # Toggle keypoint display via Main class
         show_keypoints = self.Main.toggle_keypoints()
         self.keypoint_toggle_active = show_keypoints
+        # Increase in size and color the cliked butotn green
         if show_keypoints:
-            self.keypoint_toggle_button.setStyleSheet("background-color: rgb(0, 204, 255);")
+            self.keypoint_toggle_button.setStyleSheet("background-color: rgb(0, 255, 0);")
         else:
             self.keypoint_toggle_button.setStyleSheet("")
     
@@ -76,13 +75,13 @@ class MainGUI(QtWidgets.QMainWindow):
                 self.Main.reset_camera()
                 
             # Update UI for camera mode
-            self.update_window(name="auto_camera")
+            self.update_window(name="camera_mode")
             # Start camera processing in background thread
-            Timer.Timer(function=self.Main.auto_camera, name="auto_camera").start()
+            Timer.Timer(function=self.Main.camera_mode, name="camera_mode").start()
         except Exception as e:
             # Show error on failure
-            self.MessageBox_signal.emit(str(e), "error")
-            self.MessageBox_signal.emit("Có lỗi xảy ra !", "error")  # "An error occurred!"
+            self.MessageBox_signal.critical(f"Error: {str(e)}") # "An error occurred!"
+
 
     def open_video(self):
         try:
@@ -98,59 +97,52 @@ class MainGUI(QtWidgets.QMainWindow):
                     self.Main.reset_camera()
                     
                 # Update UI for video mode
-                self.update_window(name="auto_video")
+                self.update_window(name="video_mode")
                 # Start video processing in background thread
-                Timer.Timer(function=self.Main.auto_video, name="auto_video", 
+                Timer.Timer(function=self.Main.video_mode, name="video_mode", 
                            args=[video_file]).start()
 
         except Exception as e:
             # Show error on failure
-            self.MessageBox_signal.emit(str(e), "error")
-            self.MessageBox_signal.emit("Có lỗi xảy ra !", "error")  # "An error occurred!"
+            self.MessageBox_signal.critical(f"Error: {str(e)}") # "An error occurred!"
     
     # Stop method removed
     
-    def update_window(self, name="auto_camera"):
-        # Debug info
-        print("update_window called", name)
-        
+    def update_window(self, name="camera_mode"):
         # Reset all button styles
         for item in (self.camera_mode_button, self.video_mode_button, self.keypoint_toggle_button):
             item.setEnabled(True)
             item.setStyleSheet("")
             
         # Set specific mode button style
-        if name == "auto_camera":
+        if name == "camera_mode":
             self.camera_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
-        elif name == "auto_video":
+        elif name == "video_mode":
             self.video_mode_button.setStyleSheet("background-color: rgb(0, 204, 255);")
-        
-        # Enable keypoint toggle for all modes
-        self.keypoint_toggle_button.setEnabled(True)
     
-    # Handle window close event
-    def closeEvent(self, event):
-        # Show confirmation dialog
-        reply = QtWidgets.QMessageBox.question(
-            self, "Thông báo", "Bạn có chắc chắn muốn thoát không ?",  # "Are you sure you want to exit?"
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
+    # # Handle window close even from PyQt
+    # def closeEvent(self, event):
+    #     # Show confirmation dialog
+    #     reply = QtWidgets.QMessageBox.question(
+    #         self, "Are you sure you want to exit?"
+    #         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
         
-        if reply == QtWidgets.QMessageBox.Yes:
-            event.accept()  # Close the window
-        else:
-            event.ignore()  # Ignore the close event
+    #     if reply == QtWidgets.QMessageBox.Yes:
+    #         event.accept()  # Close the window
+    #     else:
+    #         event.ignore()  # Ignore the close event
 
     # Handle message box signals
     def MessageBox_slot(self, txt, style):
         if style == "error":
             # Show error message box
-            QtWidgets.QMessageBox.critical(self, "Lỗi", txt)  # "Error"
+            QtWidgets.QMessageBox.critical(self, "Error", txt)  # "Error"
         elif style == "warning":
             # Show warning message box
-            QtWidgets.QMessageBox.warning(self, "Cảnh báo", txt)  # "Warning"
+            QtWidgets.QMessageBox.warning(self, "Warning", txt)  # "Warning"
         else:
             # Show information message box
-            QtWidgets.QMessageBox.information(self, "Thông báo", txt)  # "Information"
+            QtWidgets.QMessageBox.information(self, "Info", txt)  # "Information"
 
     # Monitor system performance (CPU, RAM, disk)
     def monitor_pc_performance(self):
@@ -174,8 +166,8 @@ class MainGUI(QtWidgets.QMainWindow):
             get_updater().call_latest(self.ui.disk.setText, 
                                      f"{round(disk_stats.used/1000000000, 1)}/{round(disk_stats.total/1000000000)}")
         except Exception as e:
-            # Silently ignore errors in performance monitoring
-            pass
+            self.MessageBox_signal.critical(f"Error: {str(e)}") # "An error occurred!"
+            
 
 
 # Application entry point
