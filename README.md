@@ -49,7 +49,7 @@ Setting the folder where footages will be stored
 
 ## 📸 Screenshots
 
-![ss1](GUI/images/examples/ss1.png)
+![gif1](GUI/images/examples/gif1.gif1)
 ![ss2](GUI/images/examples/ss2.png)
 
 ---
