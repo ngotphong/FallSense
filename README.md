@@ -13,15 +13,24 @@
 - Utilizes a state-of-the-art YOLOv7 model, fine-tuned on real CCTV footage for robust detection of sudden strokes and falls.
 - Fast, accurate, and reliable—works with live camera feeds or video files.
 
+![Live Camera](GUI/images/examples/f1.png)
+Live Camera feature
+
 ### 2. Automatic Event Recorder
 
 - Instantly records and saves video clips when a fall or stroke is detected.
 - Footage is stored locally for later review, medical analysis, or model retraining.
 
+![Automatic recorder](GUI/images/examples/f6.png)
+Automatically records and saves the falling moment for future analysis (only work in live camera feature)
+
 ### 3. Detection Analysis & Review
 
 - Load and analyze previously recorded events.
 - Useful for both medical professionals and AI researchers.
+
+![Video Mode](GUI/images/examples/f2.png)
+Allows user-uploaded footages for further analysis
 
 ### 4. User-Friendly Interface
 
@@ -29,11 +38,19 @@
 - Easy toggles for camera, video, and keypoint visualization.
 - Customizable settings for recording, saving, and flipping video feeds.
 
+![Keypoint detection](GUI/images/examples/f3.png)
+Toggle keypoint (skeleton) display
+![Flip camera](GUI/images/examples/f4.png)
+Flip the camera (only in camera mode)
+![Set folder](GUI/images/examples/f5.png)
+Setting the folder where footages will be stored
+
 ---
 
 ## 📸 Screenshots
 
-<!-- Add screenshots or GIFs here to showcase your UI and features -->
+![ss1](GUI/images/examples/ss1.png)
+![ss2](GUI/images/examples/ss2.png)
 
 ---
 
