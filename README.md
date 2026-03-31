@@ -54,6 +54,10 @@ Setting the folder where footages will be stored
 
 ---
 
+## [Introduction & Tutorial Video](https://youtu.be/xIrM4-koksA?si=FTAt01BxNaK37Esr)
+
+---
+
 ## 🛠️ Installation & Setup
 
 ### 1. **Prepare Environment**
